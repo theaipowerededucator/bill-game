@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legislative Grid Challenge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+    <!-- jsPDF Library for Certificate Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-bg: #fdfdff;
+            --secondary-bg: #ffffff;
+            --text-dark: #333;
+            --text-light: #ffffff;
+            --border-color: #e1e5e8;
+            --shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+            --font-main: 'Nunito', sans-serif;
+            --font-mono: 'Roboto Mono', monospace;
+        }
+
+        body {
+            font-family: var(--font-main);
+            margin: 0;
+            padding: 1em;
+            background-color: var(--primary-bg);
+            color: var(--text-dark);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: calc(100vh - 2em);
+        }
+
+        #game-container, #game-over-screen {
+            display: flex;
+            gap: 2em;
+            width: 100%;
+            max-width: 1600px;
+            height: 100%;
+        }
+
+        #control-panel {
+            flex: 0 0 320px;
+            background-color: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            padding: 2em;
+            text-align: center;
+        }
+        
+        #team-name-setup input {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            margin-bottom: 1em;
+            box-sizing: border-box;
+            text-align: center;
+            font-family: var(--font-main);
+            font-weight: 700;
+        }
+
+        #control-panel h1 {
+            font-size: 2em;
+            margin: 0 0 0.5em 0;
+            font-weight: 900;
+            color: #333;
+            line-height: 1.1;
+        }
+        
+        #control-panel p {
+            font-size: 1em;
+            line-height: 1.6;
+            margin-bottom: 1.5em;
+            color: #555;
+        }
+
+        #start-button {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: var(--text-light);
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.3em;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(254, 202, 87, 0.4);
+        }
+        
+        #start-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.5);
+        }
+
+        #start-button:active {
+            transform: scale(0.98);
+        }
+
+        .stats-container {
+            margin-top: 1em;
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+        }
+
+        .stat-box {
+            background-color: var(--primary-bg);
+            padding: 1em;
+            border-radius: 12px;
+        }
+
+        .stat-box h2 {
+            margin: 0 0 0.25em 0;
+            font-size: 1em;
+            font-weight: 700;
+            color: #777;
+            text-transform: uppercase;
+        }
+
+        .stat-box .value {
+            font-family: var(--font-mono);
+            font-size: 2.2em;
+            color: #333;
+            font-weight: 700;
+        }
+        
+        #team-name-display {
+            font-size: 1.5em !important;
+            color: #5f27cd !important;
+        }
+
+        #game-board {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr); 
+            grid-template-rows: repeat(5, 1fr);
+            gap: 12px;
+            background-color: var(--secondary-bg);
+            padding: 1.5em;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            height: 100%;
+            box-sizing: border-box;
+        }
+        
+        .board-tile {
+            color: var(--text-light);
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 5px;
+        }
+        
+        .board-tile:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        
+        .board-tile .icon {
+            position: absolute;
+            font-size: 3em;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: scale(0.5);
+            text-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .board-tile.correct { cursor: not-allowed; }
+        .board-tile.correct .icon.check { opacity: 0.8; transform: scale(1); }
+        .board-tile:disabled { cursor: not-allowed; }
+        .board-tile.locked { cursor: not-allowed; }
+        .board-tile.locked .icon.lock { opacity: 0.8; transform: scale(1); }
+        .board-tile.locked::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.3);
+        }
+
+        #challenge-modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+        }
+
+        .modal-content {
+            background-color: var(--secondary-bg); margin: auto; padding: 2em; border-radius: 16px;
+            width: 90%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        @keyframes pop-in { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .modal-content h2, .modal-content h3 { margin-top: 0; font-weight: 900; color: #333; }
+        .modal-content h3 { margin-top: 1.5em; margin-bottom: 0.5em; font-size: 1.1em; }
+        
+        .modal-summary {
+            background-color: var(--primary-bg); padding: 1em; border-radius: 8px; max-height: 150px;
+            overflow-y: auto; margin-bottom: 1em; border: 1px solid var(--border-color); color: #555;
+        }
+        
+        #summary-input {
+            width: 100%; padding: 10px; font-family: var(--font-main); font-size: 1em;
+            border: 2px solid var(--border-color); border-radius: 8px; box-sizing: border-box;
+            resize: vertical; min-height: 60px;
+        }
+        
+        #keywords-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.5em; }
+        
+        .keyword-label {
+            display: flex; align-items: center; background-color: #f9f9f9; padding: 12px;
+            border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer;
+            transition: all 0.2s ease; font-weight: 700;
+        }
+        .keyword-label:hover { border-color: #48dbfb; }
+        .keyword-label input { display: none; }
+        .keyword-label .custom-checkbox {
+            width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 6px;
+            margin-right: 12px; transition: all 0.2s ease; display: inline-block; position: relative;
+        }
+        .keyword-label input:checked + .custom-checkbox { background-color: #1dd1a1; border-color: #1dd1a1; }
+        .keyword-label input:checked + .custom-checkbox::after {
+            content: '✔'; color: white; position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%); font-size: 14px;
+        }
+        
+        #submit-answer-btn {
+            background: linear-gradient(45deg, #1dd1a1, #48dbfb); color: var(--text-light); border: none;
+            padding: 15px 25px; font-size: 1.1em; font-weight: 700; border-radius: 12px; cursor: pointer;
+            width: 100%; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(72, 219, 251, 0.4);
+        }
+        #submit-answer-btn:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(29, 209, 161, 0.5); }
+        #submit-answer-btn:disabled { background: #bdc3c7; cursor: not-allowed; box-shadow: none; }
+        
+        #feedback-message {
+            text-align: center; font-size: 1.2em; font-weight: bold; padding: 1em; border-radius: 8px;
+            margin-top: 1em; display: none; animation: fade-in 0.3s ease;
+        }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        #feedback-message.correct { background-color: #e8f8f5; color: #1abc9c; }
+        #feedback-message.incorrect { background-color: #fdedec; color: #e74c3c; }
+        
+        #game-over-screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #results-card {
+            background: var(--secondary-bg);
+            padding: 3em;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            animation: pop-in 0.5s ease;
+        }
+        
+        #results-card h1 { font-size: 3em; font-weight: 900; color: #5f27cd; margin: 0; }
+        #results-card h2 { font-size: 1.8em; font-weight: 700; margin: 0.2em 0 1em 0; }
+        #results-card p { font-size: 1.5em; margin: 0.5em 0; }
+        #results-card strong { font-family: var(--font-mono); }
+        
+        #export-button {
+            background: linear-gradient(45deg, #54a0ff, #5f27cd);
+            color: var(--text-light); border: none; padding: 15px 30px; font-size: 1.2em;
+            font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 1.5em;
+            transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(95, 39, 205, 0.4);
+        }
+        #export-button:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(84, 160, 255, 0.5); }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <aside id="control-panel">
+        <div id="team-name-setup">
+            <h1>Legislative Grid Challenge!</h1>
+            <p>Ready for a challenge? Enter your team name, hit 'Start Game', and show those bills who's boss!</p>
+            <input type="text" id="team-name-input" placeholder="Enter Team Name">
+            <button id="start-button" onclick="startGame()">Start Game!</button>
+        </div>
+        
+        <div id="game-stats" class="stats-container" style="display: none;">
+             <div class="stat-box">
+                <h2>TEAM</h2>
+                <div id="team-name-display" class="value"></div>
+            </div>
+            <div class="stat-box">
+                <h2>TIMER</h2>
+                <div id="timer" class="value">10:00</div>
+            </div>
+            <div class="stat-box">
+                <h2>SCORE</h2>
+                <div id="score" class="value">0</div>
+            </div>
+            <div class="stat-box">
+                <h2>PROGRESS</h2>
+                <div id="progress-tracker" class="value">0 / 0</div>
+            </div>
+        </div>
+    </aside>
+
+    <main id="game-board">
+        <!-- Game tiles will be generated here by JavaScript -->
+    </main>
+</div>
+
+<div id="game-over-screen">
+    <div id="results-card">
+        <h1>Great Work!</h1>
+        <h2 id="final-team-name"></h2>
+        <p>Final Score: <strong id="final-score"></strong></p>
+        <p>Bills Completed: <strong id="final-progress"></strong></p>
+        <button id="export-button" onclick="generateCertificate()">Export Certificate (PDF)</button>
+    </div>
+</div>
+
+<div id="challenge-modal">
+    <div class="modal-content">
+        <h2 id="modal-title">Review Bill</h2>
+        <div id="modal-summary" class="modal-summary"></div>
+        <h3>Which keywords fit this bill?</h3>
+        <div id="keywords-container"></div>
+        <h3>In one sentence, who does this bill impact?</h3>
+        <textarea id="summary-input" placeholder="e.g., This bill impacts all high school students by changing graduation requirements."></textarea>
+        <button id="submit-answer-btn" onclick="submitAnswer()" disabled>Lock in Answer!</button>
+        <div id="feedback-message"></div>
+    </div>
+</div>
+
+<script>
+    // --- DATA ---
+    const billData = {
+        "HB 2": { summary: "(Buckley, Creighton) provides $8.5 billion in new funding to public schools.", category: "Education", keywords: ["funding", "public schools"] },
+        "HB 6": { summary: "(Leach/Perry) makes several changes to student discipline, including increasing the allowable days of in school suspension to ten; removing mandatory placements in DAEP for vape possession; and providing funding for virtual DAEP placements.", category: "Education", keywords: ["discipline", "DAEP", "vaping"] },
+        "HB 9": { summary: "(Meyer, Bettencourt) increases the property tax exemption to $250,000 for tangible personal property a person owns that is held or used for the production of income (business personal property).", category: "Taxation", keywords: ["property tax", "exemption", "business"] },
+        "HB 20": { summary: "(Gates, Schwertner) requires the commissioner of education to establish and administer the Applied Sciences Pathway program for students to concurrently earn high school diplomas and certificates from institutions of higher education.", category: "Education", keywords: ["higher education", "diploma", "certificates"] },
+        "HB 22": { summary: "(Noble, Hinojosa) establishes that all intangible personal property is not taxable.", category: "Taxation", keywords: ["property tax", "intangible property"] },
+        "HB 33": { summary: "(McLaughlin, Flores), the Uvalde Strong Act, establishes and amends provisions regarding school security, law enforcement training, and mental health resources for first responders.", category: "Public Safety", keywords: ["school security", "law enforcement", "mental health"] },
+        "HB 100": { summary: "(Leo-Wilson, Middleton) prohibits a school district from using instructional material included on the list of rejected instructional materials maintained by the SBOE.", category: "Education", keywords: ["instructional materials", "SBOE"] },
+        "HB 120": { summary: "(Bell, Schwertner) establishes various provisions on career and technical education, including expanding Financial Aid for Swift Transfer (FAST) program eligibility.", category: "Education", keywords: ["career and technical education", "financial aid"] },
+        "HB 210": { summary: "(Guillen, Hinojosa) – Under the bill, a vendor that bid on or received a contract from a school district commits an offense if a board member had a substantial interest in the vendor.", category: "Governance", keywords: ["contracts", "conflict of interest", "vendor"] },
+        "HB 353": { summary: "(Patterson, Hagenbuch) creates a criminal offense for trespass on or near school or day-care center property.", status: "VETOED", category: "Public Safety", keywords: ["trespass", "criminal offense", "school property"] },
+        "HB 762": { summary: "(Leach, Bettencourt) requires a political subdivision that enters into a contract that contained a provision for severance pay to limit it to 20 weeks’ compensation.", category: "Governance", keywords: ["severance pay", "contracts", "political subdivision"] },
+        "HB 1188": { summary: "(Manuel, Zaffirini) requires a school district to provide the parent of a student with an intellectual disability information about services and public benefits provided by the local intellectual and developmental disability authority (LIDDA).", category: "Special Populations", keywords: ["intellectual disability", "LIDDA", "IEP"] },
+        "HB 1481": { summary: "(Fairly, Creighton) requires a school district to adopt a policy prohibiting a student from using a personal communication device while on school property during the school day.", category: "Education", keywords: ["cell phones", "student conduct"] },
+        "HB 1533": { summary: "(Button, Bettencourt) amends certain provisions related to the training of appraisal review board (ARB) members and taxpayer protests of property appraisals.", category: "Taxation", keywords: ["appraisal review board", "property tax", "protest"] },
+        "HB 2243": { summary: "(Oliverson, Creighton) establishes the Texas Commission on Teacher Job Satisfaction and Retention.", status: "VETOED", category: "Education", keywords: ["teachers", "retention", "commission"] },
+        "HB 2520": { summary: "(Johnson, Middleton) adds a board of managers to the entities defined as governmental bodies under the Open Meetings Act.", status: "VETOED", category: "Governance", keywords: ["open meetings act", "transparency"] },
+        "HB 3093": { summary: "(Villalobos, Hinojosa) amends how certain ad valorem property tax rates are calculated for an affected taxing unit in counties located on the Gulf of Mexico.", category: "Taxation", keywords: ["property tax", "tax rate", "Gulf coast"] },
+        "HB 4219": { summary: "(Capriglione, Zaffirini) require a public information officer to notify a requestor in writing within 10 business days if the governmental body has no information responsive to the request.", category: "Governance", keywords: ["public information act", "transparency"] },
+        "SB 2": { summary: "(Creighton, Buckley) establishes an education savings account (ESA) program.", category: "Education", keywords: ["ESA", "school choice"] },
+        "SB 4": { summary: "(Bettencourt, Meyer) increases the school district residence homestead tax exemption from $100,000 to $140,000.", category: "Taxation", keywords: ["homestead exemption", "property tax"] },
+        "SB 10": { summary: "(P. King, Noble) requires a public school to display in each classroom a poster or framed copy of the Ten Commandments.", category: "Education", keywords: ["Ten Commandments", "classroom display"] },
+        "SB 11": { summary: "(Middleton, Spiller) authorizes a school district to adopt a policy requiring every campus to provide an opportunity for prayer and reading of the Bible.", category: "Education", keywords: ["prayer in school", "religious text"] },
+        "SB 13": { summary: "(Paxton, Buckley) establishes provisions regarding the acquisition of school library materials and processes for challenging materials.", category: "Education", keywords: ["library books", "book challenge"] },
+        "SB 25": { summary: "(Kolkhorst, Hull) establishes a statewide nutrition advisory committee and nutrition curriculum requirements for public schools.", category: "Health", keywords: ["nutrition", "curriculum", "health"] },
+        "SB 57": { summary: "(Zaffirini, Gonzalez) requires an IEP or Section 504 plan to consider accommodations for a student during a mandatory school drill.", category: "Special Populations", keywords: ["IEP", "504 plan", "school drill", "disabilities"] },
+        "SB 127": { summary: "(Hall, Money) reenacts and amends statutes of limitations for certain offenses, including failure to report child abuse or neglect.", category: "Public Safety", keywords: ["child abuse", "statute of limitations"] },
+        "SB 260": { summary: "(Huffman, Bonnen) increases the school safety allotment to $20 per ADA and $33,540 per campus.", category: "Public Safety", keywords: ["school safety", "funding", "allotment"] },
+        "SB 314": { summary: "(Hughes, Harris Davila) prohibits certain food additives from being included in free or reduced-price meals provided by school districts.", category: "Health", keywords: ["food additives", "school meals"] },
+        "SB 326": { summary: "(King, Capriglione) requires a public school district to adopt the IHRA definition of antisemitism for disciplinary purposes.", category: "Education", keywords: ["antisemitism", "discipline"] },
+        "SB 568": { summary: "(Bettencourt, Buckley) revises and set out provisions relating to special education in public schools, including funding.", category: "Special Populations", keywords: ["special education", "funding"] },
+        "SB 870": { summary: "(Birdwell, Slawson) allows a school marshal to open carry a handgun if in uniform that identifies them as a school marshal.", category: "Public Safety", keywords: ["school marshal", "guns in schools", "open carry"] },
+        "SB 974": { summary: "(Eckhardt, Turner) allows a teacher to serve on the appraisal review board of an appraisal district.", status: "VETOED", category: "Taxation", keywords: ["appraisal review board", "teachers"] },
+        "SB 1177": { summary: "(Alvarado, Leach) requires a fire safety inspection of a school to include an examination of each automated external defibrillator (AED).", category: "Health", keywords: ["AED", "fire safety", "inspection"] },
+        "SB 1418": { summary: "(Campbell, Ashby) addresses the terminology and evaluation methods related to assessment instruments, replacing ACT-Plan with PreACT.", category: "Education", keywords: ["testing", "PreACT", "assessment"] },
+        "SB 1502": { summary: "(Bettencourt, Troxclair) prohibits a school district from adopting a tax rate in response to a disaster without an election.", category: "Taxation", keywords: ["tax rate", "disaster", "election"] },
+        "SB 1858": { summary: "(Hagenbuch, Leach) defines a law enforcement agency for the purposes of the bulletproof vest program to include an independent school district.", category: "Public Safety", keywords: ["bulletproof vest", "law enforcement", "school district police"] },
+        "SB 2314": { summary: "(Creighton, Wilson) requires the THECB to create an electronic platform, MyTexasFuture.Org, to facilitate direct admissions and financial aid.", category: "Education", keywords: ["higher education", "admissions", "financial aid"] },
+    };
+    
+    const distractorKeywords = {
+        "Education": ["zoning laws", "environmental protection", "court procedures"],
+        "Taxation": ["student curriculum", "hospital regulations", "highway construction"],
+        "Public Safety": ["tax exemptions", "teacher certification", "library acquisitions"],
+        "Governance": ["vaccine mandates", "student nutrition", "athletic eligibility"],
+        "Health": ["property appraisals", "open meetings", "bond elections"],
+        "Special Populations": ["business property", "voter registration", "cybersecurity"]
+    };
+    
+    const colorPalette = ['#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1', '#ff9ff3', '#54a0ff', '#5f27cd', '#c8d6e5', '#ff7f50', '#fffa65', '#7ed6df', '#e056fd'];
+
+    // --- GAME STATE ---
+    let score = 0;
+    let timerInterval;
+    let currentBillKey = null;
+    let gameActive = false;
+    let completedTiles = 0;
+    let totalTiles = 0;
+    let missCounts = {};
+    let teamName = "";
+    let userSummaries = {}; // To store user-written summaries
+
+    // --- DOM ELEMENTS ---
+    const gameContainer = document.getElementById('game-container');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const board = document.getElementById('game-board');
+    const scoreDisplay = document.getElementById('score');
+    const timerDisplay = document.getElementById('timer');
+    const progressTracker = document.getElementById('progress-tracker');
+    const teamNameDisplay = document.getElementById('team-name-display');
+    const modal = document.getElementById('challenge-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalSummary = document.getElementById('modal-summary');
+    const keywordsContainer = document.getElementById('keywords-container');
+    const summaryInput = document.getElementById('summary-input');
+    const submitAnswerBtn = document.getElementById('submit-answer-btn');
+    const feedbackMessage = document.getElementById('feedback-message');
+
+    function validateSubmitButton() {
+        const hasSummary = summaryInput.value.trim().length > 0;
+        const hasKeyword = keywordsContainer.querySelector('input:checked') !== null;
+        submitAnswerBtn.disabled = !(hasSummary && hasKeyword);
+    }
+
+    function startGame() {
+        const teamNameInput = document.getElementById('team-name-input');
+        teamName = teamNameInput.value.trim();
+        if (!teamName) {
+            alert("Please enter a team name to start!");
+            return;
+        }
+        
+        if (gameActive) return;
+        gameActive = true;
+        
+        document.getElementById('team-name-setup').style.display = 'none';
+        document.getElementById('game-stats').style.display = 'flex';
+        teamNameDisplay.textContent = teamName;
+        
+        score = 0;
+        completedTiles = 0;
+        missCounts = {};
+        userSummaries = {};
+        totalTiles = Object.keys(billData).length;
+        updateScore(0);
+        updateProgress();
+
+        buildBoard();
+        let timeRemaining = 600;
+        timerDisplay.textContent = "10:00";
+        timerInterval = setInterval(() => {
+            timeRemaining--;
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            if (timeRemaining <= 0) endGame();
+        }, 1000);
+    }
+
+    function endGame() {
+        clearInterval(timerInterval);
+        gameActive = false;
+        
+        gameContainer.style.display = 'none';
+        gameOverScreen.style.display = 'flex';
+        
+        document.getElementById('final-team-name').textContent = teamName;
+        document.getElementById('final-score').textContent = score;
+        document.getElementById('final-progress').textContent = `${completedTiles} / ${totalTiles}`;
+    }
+    
+    function buildBoard() {
+        board.innerHTML = '';
+        const billKeys = Object.keys(billData);
+        
+        for (let i = 0; i < 40; i++) {
+            const tile = document.createElement('button');
+            tile.classList.add('board-tile');
+            
+            if (i < billKeys.length) {
+                const key = billKeys[i];
+                tile.dataset.billKey = key;
+                tile.style.backgroundColor = colorPalette[i % colorPalette.length];
+                tile.innerHTML = `${key}<span class="icon check">✔</span><span class="icon lock">🔒</span>`;
+                tile.onclick = () => openChallenge(key);
+            } else {
+                tile.style.backgroundColor = '#e9ecef';
+                tile.disabled = true;
+            }
+            board.appendChild(tile);
+        }
+    }
+    
+    function openChallenge(billKey) {
+        if (!gameActive) return;
+        currentBillKey = billKey;
+        const bill = billData[billKey];
+        modalTitle.textContent = `Reviewing ${billKey}`;
+        modalSummary.textContent = bill.summary;
+        
+        // Pre-fill summary if it exists
+        summaryInput.value = userSummaries[currentBillKey] || '';
+        
+        const correctKeywords = bill.keywords;
+        const numDistractors = Math.max(2, 8 - correctKeywords.length);
+        let distractors = [];
+        for (const category in distractorKeywords) {
+            if (category !== bill.category) distractors.push(...distractorKeywords[category]);
+        }
+        distractors.sort(() => Math.random() - 0.5);
+        const challengeKeywords = [...correctKeywords, ...distractors.slice(0, numDistractors)];
+        challengeKeywords.sort(() => Math.random() - 0.5);
+        
+        keywordsContainer.innerHTML = '';
+        challengeKeywords.forEach(kw => {
+            const label = document.createElement('label');
+            label.classList.add('keyword-label');
+            label.innerHTML = `<input type="checkbox" name="keyword" value="${kw}"><span class="custom-checkbox"></span> ${kw}`;
+            label.addEventListener('change', validateSubmitButton);
+            keywordsContainer.appendChild(label);
+        });
+        
+        summaryInput.addEventListener('input', validateSubmitButton);
+        
+        validateSubmitButton();
+        feedbackMessage.style.display = 'none';
+        modal.style.display = 'flex';
+    }
+
+    function submitAnswer() {
+        // Save the summary regardless of the outcome
+        userSummaries[currentBillKey] = summaryInput.value;
+
+        const selectedKeywords = Array.from(keywordsContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+        const correctKeywords = new Set(billData[currentBillKey].keywords);
+        let roundScore = 0;
+        let allCorrect = true;
+        
+        selectedKeywords.forEach(kw => {
+            if (correctKeywords.has(kw)) roundScore += 10;
+            else { roundScore -= 5; allCorrect = false; }
+        });
+        
+        correctKeywords.forEach(kw => {
+            if (!selectedKeywords.includes(kw)) allCorrect = false;
+        });
+
+        updateScore(roundScore);
+        
+        const tile = document.querySelector(`.board-tile[data-bill-key="${currentBillKey}"]`);
+        if (allCorrect && selectedKeywords.length === correctKeywords.size) {
+            showFeedback(`Awesome! +${roundScore} Points!`, true);
+            tile.classList.add('correct');
+            tile.disabled = true;
+            completedTiles++;
+            updateProgress();
+            if (completedTiles === totalTiles) endGame();
+        } else {
+            missCounts[currentBillKey] = (missCounts[currentBillKey] || 0) + 1;
+            let lockoutTime = (missCounts[currentBillKey] >= 2) ? 20000 : 3000;
+            let feedbackText = (missCounts[currentBillKey] >= 2) 
+                ? `Incorrect again! Locked for 20 seconds.`
+                : `Not quite! Score: ${roundScore}. Locked for 3 seconds.`;
+            
+            showFeedback(feedbackText, false);
+            tile.classList.add('locked');
+            tile.disabled = true;
+            setTimeout(() => {
+                tile.classList.remove('locked');
+                tile.disabled = false;
+            }, lockoutTime);
+        }
+        
+        setTimeout(() => { modal.style.display = 'none'; }, 2000);
+    }
+    
+    function updateScore(points) {
+        score += points;
+        scoreDisplay.textContent = score;
+    }
+
+    function updateProgress() {
+        progressTracker.textContent = `${completedTiles} / ${totalTiles}`;
+    }
+    
+    function showFeedback(message, isCorrect) {
+        feedbackMessage.textContent = message;
+        feedbackMessage.className = isCorrect ? 'correct' : 'incorrect';
+        feedbackMessage.style.display = 'block';
+    }
+    
+    function generateCertificate() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        // Simple border
+        doc.setLineWidth(1.5);
+        doc.rect(10, 10, 277, 190);
+
+        // Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(40);
+        doc.text('Certificate of Achievement', doc.internal.pageSize.getWidth() / 2, 50, { align: 'center' });
+
+        // Subtitle
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'normal');
+        doc.text('This certificate is awarded to', doc.internal.pageSize.getWidth() / 2, 70, { align: 'center' });
+
+        // Team Name
+        doc.setFontSize(32);
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setTextColor(95, 39, 205); // Purple color
+        doc.text(teamName, doc.internal.pageSize.getWidth() / 2, 95, { align: 'center' });
+        doc.setTextColor(0, 0, 0); // Reset color
+
+        // Reason
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'normal');
+        doc.text('For their outstanding performance in the', doc.internal.pageSize.getWidth() / 2, 115, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.text('Legislative Grid Challenge', doc.internal.pageSize.getWidth() / 2, 125, { align: 'center' });
+
+        // Stats
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(16);
+        doc.text(`Final Score: ${score}`, doc.internal.pageSize.getWidth() / 2, 150, { align: 'center' });
+        doc.text(`Bills Completed: ${completedTiles} / ${totalTiles}`, doc.internal.pageSize.getWidth() / 2, 160, { align: 'center' });
+
+        // Date
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        doc.setFontSize(12);
+        doc.text(`Date: ${dateStr}`, 30, 185);
+
+        doc.save(`${teamName}-Legislative-Challenge-Certificate.pdf`);
+    }
+
+</script>
+
+</body>
+</html>
